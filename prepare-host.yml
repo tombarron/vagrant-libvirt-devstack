@@ -1,0 +1,45 @@
+---
+- hosts: local
+  tasks:
+  - name: install packages
+    become: yes
+    package:
+      state: latest
+      name: "{{ packages }}"
+    vars:
+      - packages:
+        - vagrant
+        - vagrant-libvirt
+        # currently Fedora ansible-playbook uses python 2
+        - python2-libselinux
+        - nfs-utils
+  - name: ensure kernel nfs service is running
+    become: yes
+    service:
+      name: nfs-server
+      state: started
+      enabled: yes
+  - name: remove /opt/stack/data
+    become: yes
+    file:
+      path: /opt/stack/data
+      state: absent
+  - name: ensure /opt/stack and /opt/stack/data exist
+    become: yes
+    file:
+      path: "{{ item }}"
+      state: directory
+      mode: 0777
+      owner: vagrant
+      group: vagrant
+    with_items:
+      - /opt/stack
+      - /opt/stack/data
+  - name: set up /etc/exports for /opt/stack
+    become: yes
+    lineinfile:
+      path: /etc/exports
+      line: '/opt/stack 192.168.18.15(rw,no_root_squash,no_subtree_check)'
+  - name: refresh system exports
+    become: yes
+    command: /usr/sbin/exportfs -r

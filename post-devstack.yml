@@ -1,0 +1,16 @@
+---
+- hosts: devstack
+  tasks:
+  - name: allow http traffic
+    become: yes
+    iptables:
+      chain: INPUT
+      rule_num: 1
+      action: insert
+      in_interface: eth0
+      protocol: tcp
+      match: tcp
+      destination_port: 80
+      ctstate: NEW,ESTABLISHED
+      jump: ACCEPT
+

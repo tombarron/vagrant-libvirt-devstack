@@ -1,0 +1,77 @@
+---
+- hosts: all
+  tasks:
+  - name: install packages
+    become: yes
+    package:
+      state: latest
+      name: "{{ packages }}"
+    vars:
+      - packages:
+        - git
+        - tmux
+        - emacs
+        - wget
+        - net-tools
+        - vim
+  - name: install fpaste
+    become: yes
+    yum:
+      name: http://dl.fedoraproject.org/pub/epel/7/x86_64/Packages/f/fpaste-0.3.7.4.1-2.el7.noarch.rpm
+      state: present
+  - name: update packages
+    become: yes
+    package:
+      state: latest
+      name: "*"
+  - name: clone devstack
+    git: repo=https://git.openstack.org/openstack-dev/devstack
+         dest={{ ansible_env.HOME }}/devstack
+         update=no
+  - name: setup local.conf
+    action: template
+      src=templates/local.conf.j2
+      dest={{ ansible_env.HOME }}/devstack/local.conf
+      mode=0644
+      owner={{ansible_env.USER}}
+  - name: uninstall OS python-setuptools
+    become: yes
+    package:
+      name: python-setuptools
+      state: absent
+  - name: reboot the devstack host
+    become: yes
+    shell: "sleep 2 && shutdown -r now"
+    async: 1
+    poll: 0
+    ignore_errors: true
+  # Ansible bug around delegate+vars+wait
+  # https://github.com/ansible/ansible/issues/11705
+  # http://www.elmund.io/configuration%20management/2015/07/23/ansible-delegate_to-and-variables/
+  - name: wait for the devstack host to be available
+    become: no
+    wait_for:
+      port: 22
+      host: "{{ ansible_host }}"
+      search_regex: OpenSSH
+      delay: 10
+      sleep: 3
+    delegate_to: localhost
+    retries: 6
+    delay: 30
+  - name: Create /opt/stack mountpoint
+    become: yes
+    file:
+      path: /opt/stack
+      state: directory
+      mode: 0777
+      owner: vagrant
+      group: vagrant
+  - name: Mount /opt/stack from host
+    become: yes
+    mount:
+      name: /opt/stack
+      src: 192.168.18.1:/opt/stack
+      fstype: nfs
+      opts: defaults
+      state: mounted
